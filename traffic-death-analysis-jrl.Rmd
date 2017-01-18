@@ -1,0 +1,174 @@
+---
+title: "Analyzing the NYC Traffic Death Data"
+author: "John Little"
+date: '`r Sys.Date()`'
+output:
+  html_notebook: default
+---
+
+## Load R packages and the data
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(lubridate)
+library(ggvis)
+
+traffic <- read_csv('traffic-deaths.csv', col_types = list(time = col_character()))
+```
+
+```{r}
+traffic
+```
+
+## Process/clean the data/display bar graph
+
+```{r}
+traffic %>% 
+  mutate(vtype = if_else(is.na(victim_type), "unknown", victim_type)) %>%         # replace NA with "unknown"
+  mutate(fvtype = factor(vtype, levels = names(sort(table(vtype))))) %>%          # duplicate victim_type as a factor vector
+  mutate(timestamp = mdy_hms(paste(date, " ", time), tz="America/New_York")) %>%  # process time
+  filter(!is.na(timestamp)) -> fulldate                                           # remove NAs and assign to new tibble
+
+fulldate %>% 
+  ggvis(~month(timestamp)) %>% 
+  layer_bars()
+```
+
+## Visualizing variable separately for a quick summary
+
+### Accidents over time
+
+```{r accidents_by_month}
+
+# In this plot, we want to summarize the data by month. The bar chart
+# will count the number of accidents in each month; we just have to
+# tell it how to find the month in the data.  It's easy to pull parts 
+# of the timestamp out using lubridate functions like month(). 
+# Type ?lubridate for information.
+
+fulldate %>% 
+  mutate(month_var = factor(month(timestamp), labels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sept","Oct","Nov","Dec"))) %>% 
+  ggvis(~month_var) %>% 
+  layer_bars()
+
+
+```
+
+```{r accidents_by_hour, message=FALSE, warning=FALSE}
+
+# This is similar to the previous plot, but now we're pulling out the
+# hour of the timestamp.  What do you think factor() is doing here?
+# Tip: try the same plot without the factor() command.
+
+# ggplot(df.fulldate, aes(x=factor(hour(timestamp)))) + geom_bar()
+
+```
+
+```{r accidents_by_day}
+
+# Try on your own: plot the number of accidents on different days of the week.
+
+```
+
+***
+
+**Save a new version!**
+
+Head back to the [README file](https://github.com/dukevis/mean-streets) for instructions on how to push a new version to your GitHub repository straight from RStudio.
+
+***
+
+### Categories of victims
+
+```{r age_distribution}
+
+# In previous plots, we used "geom_bar".  This chart is using "geom_histogram".
+# Why might that be?
+
+# ggplot(df.fulldate, aes(x=age)) + geom_histogram(bins=25)
+
+```
+
+```{r victims_by_gender}
+
+# Here is the basic framework for a pie chart, but it could use a lot of help!  
+# For starters, try:
+#    - fixing the categories to change blank cells to "Unknown"
+#    - combine "M" and "m"
+#    - specify the order of the wedges in pie chart
+
+# ggplot(df.fulldate, aes(x=factor(1),fill=gender)) + geom_bar(position="stack") + coord_polar(theta="y") 
+
+```
+
+## Looking for relationships between variables
+
+```{r victims_by_hour}
+
+# This is the same plot by hour we had above, but now the bars are colored
+# according to the victim type.  The final line of the plot overrides the 
+# default colors using part of a color palette from the RColorBrewer package.
+
+ggplot(df.fulldate, aes(x=factor(hour(timestamp)))) + geom_bar(aes(fill=victim_type)) + scale_fill_manual(values=rev(brewer.pal(5,"Set2")))
+```
+
+```{r hour_by_dayofweek}
+
+# This plot is often called a "heatmap". It compares the day of the week to the 
+# hour of the day to see if there are cycles of accidents.  In ggplot2, heatmaps
+# are called bin2d, or a chart with two dimensional binning.  This plot also
+# using "theme_bw()" to apply a black and white background theme, instead of the
+# grey background with white gridlines.
+
+ggplot(df.fulldate, aes(x=hour(timestamp), y=wday(timestamp, label=TRUE))) + 
+  geom_bin2d(binwidth=1) + 
+  scale_fill_gradient(low="mistyrose",high="indianred4") + 
+  theme_bw()
+
+```
+
+```{r accidents_by_day_a}
+
+# What about a line chart that shows the number of accidents each day for the 
+# entire year?  Well, it's a bit messy, but here's one way you might make that.
+
+ggplot(df.fulldate, aes(timestamp)) + geom_freqpoly(binwidth=86400)
+```
+
+```{r accidents_by_day_b}
+
+# Here's another way to make pretty much the same chart.  What are the differences?
+
+ggplot(df.fulldate, aes(yday(timestamp))) + geom_freqpoly(binwidth=1)
+
+```
+
+```{r charges_by_victim}
+
+# Now, what if we wanted to try to predict whether charges would be filed?
+# This code does a few things:
+#    - limit the data just to rows where "charges" is not empty
+#    - create one bar for adult victims, one for child victims
+#    - split the bar into two categories -- one where charges is "None", and 
+#      another that includes everything else
+#    - have the bars measure percentage instead of count
+
+ggplot(df.fulldate[df.fulldate$charges != "",], aes(x=child_adult,fill=charges!="None")) + geom_bar(position="fill")
+
+```
+
+## Try on your own
+
+* The charts need a **lot** of help with axis labels, colors, etc.  
+    New to ggplot2? Check out the cheatsheet under Help --> Cheatsheets
+* What other variables need cleaning?
+* What other variables could be summarized or compared?
+
+## Resources
+
+* [R for Data Science, Hadley Wickham](http://r4ds.had.co.nz/)
+* [Happy Git and GitHub for the useR](http://happygitwithr.com/)
+* [Duke University Libraries' LearnR group](https://github.com/dukevis/learnr/wiki)
+* [Data is Plural Datasets - regularly updated](https://docs.google.com/spreadsheets/d/1wZhPLMCHKJvwOkP4juclhjFgqIY8fQFMemwKL2c64vk/edit#gid=0)
+* [Pro Git Book](https://git-scm.com/book/en/v2)
+* [Introduction to ggplot2](http://rpubs.com/amz25/TVG-ggplot2)
